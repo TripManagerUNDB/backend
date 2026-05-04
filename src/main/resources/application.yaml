@@ -1,3 +1,10 @@
 spring:
   application:
     name: TripManagerUNDB
+
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/tripmanager}
+
+server:
+  port: 8080
