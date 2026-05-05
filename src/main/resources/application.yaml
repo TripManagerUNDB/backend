@@ -8,3 +8,19 @@ spring:
 
 server:
   port: 8080
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:trip-manager-secret-key-muito-longa-para-hs256-minimo-256-bits-ok}
+    expiration-ms: 900000          # 15 min — access token
+    refresh-expiration-ms: 604800000  # 7 dias — refresh token
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:3001
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

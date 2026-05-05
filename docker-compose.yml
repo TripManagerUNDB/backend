@@ -8,6 +8,7 @@ services:
       - mongodb
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/tripmanager
+      JWT_SECRET: trip-manager-secret-key-muito-longa-para-hs256-minimo-256-bits-ok
 
   mongodb:
     image: mongo:7

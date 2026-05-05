@@ -9,5 +9,4 @@ public class TripManagerUndbApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(TripManagerUndbApplication.class, args);
 	}
-
 }
