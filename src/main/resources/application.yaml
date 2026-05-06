@@ -2,9 +2,12 @@ spring:
   application:
     name: TripManagerUNDB
 
+  main:
+    allow-circular-references: true
+
   data:
     mongodb:
-      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/tripmanager}
+      uri: ${SPRING_DATA_MONGODB_URI}
 
 server:
   port: 8080
@@ -15,9 +18,7 @@ app:
     expiration-ms: 900000          # 15 min — access token
     refresh-expiration-ms: 604800000  # 7 dias — refresh token
   cors:
-    allowed-origins:
-      - http://localhost:3000
-      - http://localhost:3001
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001}
 
 management:
   endpoints:
