@@ -10,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -31,8 +30,6 @@ public class ItineraryService {
     private static final DateTimeFormatter BR_FORMAT = DateTimeFormatter.ofPattern("EEE, dd MMM",
             new Locale("pt", "BR"));
 
-    // ── Geração via API Python ────────────────────────────────
-
     public List<ItineraryDay> generate(String userId, String tripId) {
         Trip trip = tripService.findEntityById(tripId);
 
@@ -42,12 +39,13 @@ public class ItineraryService {
 
         itineraryRepository.deleteByTripId(tripId);
 
-        // Calcula número de dias
         int days = (int) (trip.getCheckOut().toEpochDay() - trip.getCheckIn().toEpochDay());
 
-        // Monta o payload para a API Python
+        // Normaliza o destino removendo acentos antes de enviar para a API Python
+        String destination = normalizeDestination(trip.getDestination());
+
         Map<String, Object> payload = new HashMap<>();
-        payload.put("destination", trip.getDestination());
+        payload.put("destination", destination);
         payload.put("days", days);
         payload.put("travelers", trip.getTravelers());
         payload.put("budget", trip.getBudgetLabel());
@@ -56,10 +54,9 @@ public class ItineraryService {
         payload.put("mobility_restrictions", false);
         payload.put("accommodation", "hotel");
 
-        log.info("Chamando API Python para tripId={} destino={}", tripId, trip.getDestination());
+        log.info("Chamando API Python para tripId={} destino={}", tripId, destination);
 
         try {
-            // Chama a API Python
             String body = objectMapper.writeValueAsString(payload);
 
             java.net.URL url = new java.net.URL(pythonApiUrl + "/trip/plan");
@@ -79,18 +76,13 @@ public class ItineraryService {
             }
 
             log.info("Resposta recebida da API Python para tripId={}", tripId);
-
-            // Parseia e persiste
             return parseAndSave(response, tripId, trip.getCheckIn());
 
         } catch (Exception e) {
             log.error("Erro ao chamar API Python: {}. Usando gerador local.", e.getMessage());
-            // Fallback: usa gerador local se a API Python não estiver disponível
             return generateFallback(tripId, trip);
         }
     }
-
-    // ── Parser da resposta da API Python ─────────────────────
 
     private List<ItineraryDay> parseAndSave(String json, String tripId, LocalDate checkIn) throws Exception {
         JsonNode root = objectMapper.readTree(json);
@@ -103,10 +95,8 @@ public class ItineraryService {
             int dayNum = dayNode.get("day").asInt();
             String title = dayNode.path("title").asText("");
             String dailyCost = dayNode.path("daily_cost_estimate").asText(null);
-
             LocalDate date = checkIn.plusDays(dayNum - 1);
 
-            // Atividades do dia
             List<ItineraryDay.Activity> activities = new ArrayList<>();
             for (JsonNode act : dayNode.get("activities")) {
                 String estimatedCostText = act.path("estimated_cost").asText("Gratuito");
@@ -134,7 +124,6 @@ public class ItineraryService {
                         .build());
             }
 
-            // Map pins do dia
             List<ItineraryDay.MapPin> mapPins = new ArrayList<>();
             if (allMapPins != null) {
                 for (JsonNode pin : allMapPins) {
@@ -175,7 +164,12 @@ public class ItineraryService {
         return result;
     }
 
-    // ── Helpers ───────────────────────────────────────────────
+    // ── Normaliza destino removendo acentos ───────────────────
+    private String normalizeDestination(String dest) {
+        return java.text.Normalizer
+                .normalize(dest, java.text.Normalizer.Form.NFD)
+                .replaceAll("[\\p{InCombiningDiacriticalMarks}]", "");
+    }
 
     private int parseCost(String text) {
         if (text == null || text.isBlank() || text.equalsIgnoreCase("Gratuito"))
@@ -229,8 +223,6 @@ public class ItineraryService {
         return "📍";
     }
 
-    // ── Fallback local (caso API Python não esteja disponível) ─
-
     private List<ItineraryDay> generateFallback(String tripId, Trip trip) {
         List<ItineraryDay> days = new ArrayList<>();
         LocalDate current = trip.getCheckIn();
@@ -238,36 +230,24 @@ public class ItineraryService {
 
         while (!current.isAfter(trip.getCheckOut().minusDays(1))) {
             List<ItineraryDay.Activity> acts = List.of(
-                    ItineraryDay.Activity.builder()
-                            .time("09:00").name("Exploração local").type("Passeio")
-                            .icon("🗺️").dur("3h").cost(0)
-                            .desc("Explore o centro da cidade.").build(),
-                    ItineraryDay.Activity.builder()
-                            .time("13:00").name("Almoço típico").type("Restaurante")
-                            .icon("🍽️").dur("1h").cost(80)
-                            .desc("Experimente a gastronomia local.").build(),
-                    ItineraryDay.Activity.builder()
-                            .time("15:00").name("Ponto turístico principal").type("Monumento")
-                            .icon("📍").dur("2h").cost(50)
-                            .desc("Visite o principal atrativo da cidade.").build());
+                    ItineraryDay.Activity.builder().time("09:00").name("Exploração local").type("Passeio").icon("🗺️")
+                            .dur("3h").cost(0).desc("Explore o centro da cidade.").build(),
+                    ItineraryDay.Activity.builder().time("13:00").name("Almoço típico").type("Restaurante").icon("🍽️")
+                            .dur("1h").cost(80).desc("Experimente a gastronomia local.").build(),
+                    ItineraryDay.Activity.builder().time("15:00").name("Ponto turístico principal").type("Monumento")
+                            .icon("📍").dur("2h").cost(50).desc("Visite o principal atrativo da cidade.").build());
 
             ItineraryDay day = ItineraryDay.builder()
-                    .tripId(tripId)
-                    .dayNumber(dayNum)
-                    .date(current.format(BR_FORMAT))
+                    .tripId(tripId).dayNumber(dayNum).date(current.format(BR_FORMAT))
                     .title("Dia " + dayNum + " em " + trip.getDestination())
-                    .activities(new ArrayList<>(acts))
-                    .build();
+                    .activities(new ArrayList<>(acts)).build();
 
             days.add(itineraryRepository.save(day));
             current = current.plusDays(1);
             dayNum++;
         }
-
         return days;
     }
-
-    // ── Outros métodos ────────────────────────────────────────
 
     public List<ItineraryDay> getDays(String tripId) {
         return itineraryRepository.findByTripIdOrderByDayNumber(tripId);
@@ -275,18 +255,16 @@ public class ItineraryService {
 
     public ItineraryDay updateActivity(String dayId, int index, ItineraryDay.Activity updated) {
         ItineraryDay day = findDay(dayId);
-        if (index < 0 || index >= day.getActivities().size()) {
+        if (index < 0 || index >= day.getActivities().size())
             throw new IllegalArgumentException("Índice de atividade inválido.");
-        }
         day.getActivities().set(index, updated);
         return itineraryRepository.save(day);
     }
 
     public ItineraryDay removeActivity(String dayId, int index) {
         ItineraryDay day = findDay(dayId);
-        if (index < 0 || index >= day.getActivities().size()) {
+        if (index < 0 || index >= day.getActivities().size())
             throw new IllegalArgumentException("Índice de atividade inválido.");
-        }
         day.getActivities().remove(index);
         return itineraryRepository.save(day);
     }
