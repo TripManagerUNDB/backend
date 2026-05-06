@@ -18,32 +18,32 @@ public class TripService {
 
     private final TripRepository tripRepository;
 
-    // Mesmo mapeamento de emojis usado no frontend
     private static final Map<String, String> EMOJI_MAP = Map.ofEntries(
-            Map.entry("Paris",        "🗼"),
-            Map.entry("Tóquio",       "⛩️"),
-            Map.entry("Tokyo",        "⛩️"),
-            Map.entry("Islândia",     "🌋"),
-            Map.entry("Iceland",      "🌋"),
-            Map.entry("Marrocos",     "🕌"),
-            Map.entry("Morocco",      "🕌"),
+            Map.entry("Paris", "🗼"),
+            Map.entry("Tóquio", "⛩️"),
+            Map.entry("Tokyo", "⛩️"),
+            Map.entry("Islândia", "🌋"),
+            Map.entry("Iceland", "🌋"),
+            Map.entry("Marrocos", "🕌"),
+            Map.entry("Morocco", "🕌"),
             Map.entry("Buenos Aires", "🥩"),
-            Map.entry("Lisboa",       "🏰"),
-            Map.entry("Lisbon",       "🏰"),
-            Map.entry("Roma",         "🏛️"),
-            Map.entry("Rome",         "🏛️"),
-            Map.entry("Nova York",    "🗽"),
-            Map.entry("New York",     "🗽"),
-            Map.entry("Bangkok",      "🛕"),
-            Map.entry("Bali",         "🌺"),
-            Map.entry("Amsterdam",    "🚲"),
-            Map.entry("Cidade do Cabo","🦁")
-    );
+            Map.entry("Lisboa", "🏰"),
+            Map.entry("Lisbon", "🏰"),
+            Map.entry("Roma", "🏛️"),
+            Map.entry("Rome", "🏛️"),
+            Map.entry("Nova York", "🗽"),
+            Map.entry("New York", "🗽"),
+            Map.entry("Bangkok", "🛕"),
+            Map.entry("Bali", "🌺"),
+            Map.entry("Amsterdam", "🚲"),
+            Map.entry("Cidade do Cabo", "🦁"));
 
     private static final List<String> COLORS = List.of(
             "#EA9940", "#307082", "#6CA3A2",
-            "#EA9940", "#307082", "#6CA3A2"
-    );
+            "#EA9940", "#307082", "#6CA3A2");
+
+    // Mapeia o budget numérico para o label que a API Python espera
+    private static final String[] BUDGET_LABELS = { "baixo", "médio", "alto" };
 
     public TripResponse create(String userId, TripRequest req) {
         String emoji = EMOJI_MAP.entrySet().stream()
@@ -54,6 +54,7 @@ public class TripService {
 
         int count = (int) tripRepository.countByUserId(userId);
         String color = COLORS.get(count % COLORS.size());
+        String budgetLabel = BUDGET_LABELS[Math.min(req.budget(), 2)];
 
         Trip trip = Trip.builder()
                 .userId(userId)
@@ -61,6 +62,9 @@ public class TripService {
                 .checkIn(req.checkIn())
                 .checkOut(req.checkOut())
                 .budget(req.budget())
+                .budgetLabel(budgetLabel)
+                .travelers(req.travelers() > 0 ? req.travelers() : 1)
+                .travelStyle(req.travelStyle() != null ? req.travelStyle() : "moderado")
                 .interests(req.interests())
                 .emoji(emoji)
                 .color(color)
@@ -89,7 +93,6 @@ public class TripService {
         tripRepository.delete(findOwned(userId, tripId));
     }
 
-    /** Usado internamente por outros serviços */
     public Trip findEntityById(String tripId) {
         return tripRepository.findById(tripId)
                 .orElseThrow(() -> new NoSuchElementException("Viagem não encontrada: " + tripId));

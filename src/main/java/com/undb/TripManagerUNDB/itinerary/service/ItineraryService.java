@@ -1,88 +1,37 @@
 package com.undb.TripManagerUNDB.itinerary.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.undb.TripManagerUNDB.itinerary.entity.ItineraryDay;
 import com.undb.TripManagerUNDB.itinerary.repository.ItineraryRepository;
 import com.undb.TripManagerUNDB.trip.entity.Trip;
 import com.undb.TripManagerUNDB.trip.service.TripService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ItineraryService {
 
     private final ItineraryRepository itineraryRepository;
     private final TripService tripService;
+    private final ObjectMapper objectMapper;
 
-    private static final DateTimeFormatter BR_FORMAT =
-            DateTimeFormatter.ofPattern("EEE, dd MMM", new Locale("pt", "BR"));
+    @Value("${app.python-api.url:http://localhost:8000}")
+    private String pythonApiUrl;
 
-    // Banco de atividades por destino / tipo
-    private static final Map<String, List<ItineraryDay.Activity>> DEST_ACTIVITIES = Map.ofEntries(
-        Map.entry("Paris", List.of(
-            act("09:00","Torre Eiffel",      "Monumento",    "🗼","2h",  120,"Chegue antes das 9h para evitar filas. Reserve ingresso online."),
-            act("12:00","Café de Flore",     "Restaurante",  "☕","1h",   85,"Café histórico em Saint-Germain. Prove o café com croissant."),
-            act("14:00","Musée du Louvre",   "Museu",        "🎨","3h",   95,"Foque na ala grega e na Mona Lisa. Baixe o app do museu."),
-            act("19:00","Le Comptoir",       "Restaurante",  "🍽️","2h", 180,"Bistrô clássico. Reserve com antecedência."),
-            act("10:00","Marais District",   "Bairro",       "🏛️","3h",   0,"Explore galerias e a Place des Vosges."),
-            act("14:00","Centre Pompidou",   "Museu",        "🎭","2h",   75,"Arte moderna. Vista incrível do terraço."),
-            act("09:30","Versalhes",         "Palácio",      "🏰","5h", 240,"Excursão de dia inteiro. Reserve guia para o Trianon."),
-            act("10:00","Montmartre",        "Bairro",       "🎨","3h",   0,"Suba a pé e visite ateliês de artistas."),
-            act("13:30","Sacré-Cœur",        "Igreja",       "⛪","1h",   0,"Vista panorâmica de 360°. Entrada gratuita."),
-            act("16:00","Galeries Lafayette","Compras",      "🛍️","2h", 300,"Dôme art nouveau e rooftop com vista para a Ópera.")
-        )),
-        Map.entry("Tóquio", List.of(
-            act("09:00","Senso-ji",          "Templo",       "⛩️","2h",   0,"Chegue cedo para ver o templo sem multidões."),
-            act("12:00","Ramen Ichiran",     "Restaurante",  "🍜","1h",  60,"Ramen em cabines individuais — experiência única."),
-            act("14:00","Shibuya Crossing",  "Bairro",       "🚶","2h",   0,"O cruzamento mais movimentado do mundo. Observe do Starbucks."),
-            act("19:00","Izakaya local",     "Restaurante",  "🍣","2h", 120,"Jantar em izakaya autêntico com yakitori e sake."),
-            act("10:00","TeamLab Planets",   "Museu",        "🎨","3h", 180,"Arte digital imersiva. Reserve com semanas de antecedência."),
-            act("09:00","Shinjuku Gyoen",    "Natureza",     "🌸","2h",  15,"Jardim nacional perfeito para caminhadas tranquilas."),
-            act("14:00","Harajuku",          "Compras",      "🛍️","2h",   0,"Moda jovem e lojas exclusivas na Takeshita Street."),
-            act("10:00","Tsukiji Fish Market","Mercado",     "🐟","2h",   0,"Mercado externo ainda em operação. Chegue cedo para o café."),
-            act("15:00","Akihabara",         "Bairro",       "🎮","3h",   0,"Paraíso eletrônico e cultura pop japonesa.")
-        )),
-        Map.entry("Islândia", List.of(
-            act("08:00","Golden Circle",     "Natureza",     "🌋","6h", 150,"Tour pelo Geysir, Gullfoss e Þingvellir. Alugar carro é essencial."),
-            act("20:00","Aurora Boreal",     "Natureza",     "🌌","3h",   0,"Check app Aurora Forecast. Afaste-se das luzes da cidade."),
-            act("09:00","Lagoa Azul",        "Spa",          "💆","4h", 280,"Reserve com meses de antecedência. Leve óculos para a sílica."),
-            act("10:00","Skógafoss",         "Natureza",     "🏔️","3h",   0,"Cachoeira icônica. Suba os 400 degraus para vista privilegiada."),
-            act("09:00","Jökulsárlón",       "Natureza",     "🧊","4h",   0,"Lagoa glacial com blocos de gelo flutuantes — surreal."),
-            act("14:00","Vik",               "Bairro",       "🖤","2h",   0,"Praia de areia negra vulcânica. Cuidado com ondas.")
-        )),
-        Map.entry("Marrocos", List.of(
-            act("09:00","Medina de Fez",     "Bairro",       "🕌","4h",   0,"A medina mais antiga do mundo. Contrate guia local."),
-            act("14:00","Curtumes Chouara",  "Monumento",    "🎨","1h",  30,"Vista dos curtumes de couro do terraço das lojas."),
-            act("09:00","Mercado Jemaa",     "Mercado",      "🏺","3h",   0,"Praça principal de Marrakech. Visite ao anoitecer."),
-            act("14:00","Palácio Bahia",     "Palácio",      "🏰","2h",  15,"Arquitetura islâmica impressionante do século XIX."),
-            act("08:00","Deserto Sahara",    "Natureza",     "🐪","8h", 350,"Passeio de camelo ao amanhecer. Inclui pernoite opcional.")
-        )),
-        Map.entry("Lisboa", List.of(
-            act("09:00","Pastéis de Belém",  "Restaurante",  "🍮","1h",  20,"O original pastel de nata desde 1837. Fila compensa."),
-            act("11:00","Mosteiro Jerônimos","Monumento",    "🏛️","2h",  15,"Obra máxima do Manuelino. Tumba de Vasco da Gama."),
-            act("14:00","Alfama",            "Bairro",       "🎸","3h",   0,"Bairro histórico. Ouça fado ao vivo num tasca."),
-            act("10:00","Sintra",            "Natureza",     "🏰","6h",  35,"Palácio da Pena e Castelo dos Mouros. Ida de trem."),
-            act("19:00","Time Out Market",   "Restaurante",  "🍷","2h", 100,"Melhor gastronomia portuguesa num só lugar.")
-        ))
-    );
+    private static final DateTimeFormatter BR_FORMAT = DateTimeFormatter.ofPattern("EEE, dd MMM",
+            new Locale("pt", "BR"));
 
-    // Atividades genéricas para destinos sem mapeamento
-    private static final List<ItineraryDay.Activity> GENERIC_ACTIVITIES = List.of(
-        act("09:00","Centro Histórico",   "Bairro",      "🏙️","3h",   0,"Explore o centro da cidade a pé."),
-        act("12:30","Almoço local",       "Restaurante", "🍽️","1h",  80,"Experimente a gastronomia típica da região."),
-        act("14:30","Museu Principal",    "Museu",       "🎨","2h",  50,"Visite o museu mais importante da cidade."),
-        act("17:00","Parque / Jardim",    "Natureza",    "🌿","2h",   0,"Descanso e fotos no parque central."),
-        act("20:00","Jantar típico",      "Restaurante", "🍷","2h", 120,"Jantar com pratos regionais e vinho local."),
-        act("10:00","Mercado Local",      "Mercado",     "🛍️","2h",   0,"Explore o mercado e compre lembranças."),
-        act("14:00","Tour Histórico",     "Monumento",   "🗺️","3h",  60,"Passeio guiado pelos pontos históricos."),
-        act("09:00","Mirante / Vista",    "Natureza",    "📸","2h",   0,"Vista panorâmica da cidade. Chegue cedo para luz perfeita."),
-        act("15:00","Bairro Boêmio",      "Bairro",      "🎭","2h",   0,"Cafés, arte de rua e lojas alternativas."),
-        act("19:00","Pôr do Sol",         "Natureza",    "🌅","1h",   0,"Melhor spot para apreciar o pôr do sol local.")
-    );
+    // ── Geração via API Python ────────────────────────────────
 
     public List<ItineraryDay> generate(String userId, String tripId) {
         Trip trip = tripService.findEntityById(tripId);
@@ -93,32 +42,221 @@ public class ItineraryService {
 
         itineraryRepository.deleteByTripId(tripId);
 
-        // Seleciona banco de atividades do destino ou usa genérico
-        List<ItineraryDay.Activity> pool = DEST_ACTIVITIES.entrySet().stream()
-                .filter(e -> trip.getDestination().contains(e.getKey()))
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .orElse(GENERIC_ACTIVITIES);
+        // Calcula número de dias
+        int days = (int) (trip.getCheckOut().toEpochDay() - trip.getCheckIn().toEpochDay());
 
-        List<ItineraryDay> days = new ArrayList<>();
-        LocalDate current = trip.getCheckIn();
-        int dayNum = 1;
-        int actOffset = 0;
+        // Monta o payload para a API Python
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("destination", trip.getDestination());
+        payload.put("days", days);
+        payload.put("travelers", trip.getTravelers());
+        payload.put("budget", trip.getBudgetLabel());
+        payload.put("preferences", trip.getInterests());
+        payload.put("travel_style", trip.getTravelStyle() != null ? trip.getTravelStyle() : "moderado");
+        payload.put("mobility_restrictions", false);
+        payload.put("accommodation", "hotel");
 
-        while (!current.isAfter(trip.getCheckOut().minusDays(1))) {
-            // 3-4 atividades por dia, rotacionando o pool
-            int count = (dayNum % 2 == 0) ? 3 : 4;
-            List<ItineraryDay.Activity> dayActs = new ArrayList<>();
-            for (int i = 0; i < count; i++) {
-                dayActs.add(pool.get(actOffset % pool.size()));
-                actOffset++;
+        log.info("Chamando API Python para tripId={} destino={}", tripId, trip.getDestination());
+
+        try {
+            // Chama a API Python
+            String body = objectMapper.writeValueAsString(payload);
+
+            java.net.URL url = new java.net.URL(pythonApiUrl + "/trip/plan");
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setDoOutput(true);
+            conn.getOutputStream().write(body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+            int status = conn.getResponseCode();
+            java.io.InputStream is = status < 400 ? conn.getInputStream() : conn.getErrorStream();
+            String response = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            conn.disconnect();
+
+            if (status >= 400) {
+                throw new RuntimeException("API Python retornou " + status + ": " + response);
+            }
+
+            log.info("Resposta recebida da API Python para tripId={}", tripId);
+
+            // Parseia e persiste
+            return parseAndSave(response, tripId, trip.getCheckIn());
+
+        } catch (Exception e) {
+            log.error("Erro ao chamar API Python: {}. Usando gerador local.", e.getMessage());
+            // Fallback: usa gerador local se a API Python não estiver disponível
+            return generateFallback(tripId, trip);
+        }
+    }
+
+    // ── Parser da resposta da API Python ─────────────────────
+
+    private List<ItineraryDay> parseAndSave(String json, String tripId, LocalDate checkIn) throws Exception {
+        JsonNode root = objectMapper.readTree(json);
+        JsonNode itinerary = root.get("itinerary");
+        JsonNode allMapPins = root.get("map_pins");
+
+        List<ItineraryDay> result = new ArrayList<>();
+
+        for (JsonNode dayNode : itinerary) {
+            int dayNum = dayNode.get("day").asInt();
+            String title = dayNode.path("title").asText("");
+            String dailyCost = dayNode.path("daily_cost_estimate").asText(null);
+
+            LocalDate date = checkIn.plusDays(dayNum - 1);
+
+            // Atividades do dia
+            List<ItineraryDay.Activity> activities = new ArrayList<>();
+            for (JsonNode act : dayNode.get("activities")) {
+                String estimatedCostText = act.path("estimated_cost").asText("Gratuito");
+                int costInt = parseCost(estimatedCostText);
+
+                ItineraryDay.Coordinates coords = null;
+                if (act.has("coordinates") && !act.get("coordinates").isNull()) {
+                    coords = ItineraryDay.Coordinates.builder()
+                            .lat(act.get("coordinates").get("lat").asDouble())
+                            .lng(act.get("coordinates").get("lng").asDouble())
+                            .build();
+                }
+
+                activities.add(ItineraryDay.Activity.builder()
+                        .time(act.path("time").asText(""))
+                        .name(act.path("activity").asText(""))
+                        .location(act.path("location").asText(""))
+                        .type(inferType(act.path("activity").asText("")))
+                        .icon(inferIcon(act.path("activity").asText("")))
+                        .dur("2h")
+                        .cost(costInt)
+                        .estimatedCost(estimatedCostText)
+                        .desc(act.path("tips").asText(""))
+                        .coordinates(coords)
+                        .build());
+            }
+
+            // Map pins do dia
+            List<ItineraryDay.MapPin> mapPins = new ArrayList<>();
+            if (allMapPins != null) {
+                for (JsonNode pin : allMapPins) {
+                    if (pin.get("day").asInt() == dayNum) {
+                        ItineraryDay.Coordinates coords = null;
+                        if (pin.has("coordinates")) {
+                            coords = ItineraryDay.Coordinates.builder()
+                                    .lat(pin.get("coordinates").get("lat").asDouble())
+                                    .lng(pin.get("coordinates").get("lng").asDouble())
+                                    .build();
+                        }
+                        mapPins.add(ItineraryDay.MapPin.builder()
+                                .day(dayNum)
+                                .time(pin.path("time").asText(""))
+                                .activity(pin.path("activity").asText(""))
+                                .location(pin.path("location").asText(""))
+                                .type(pin.path("type").asText(""))
+                                .coordinates(coords)
+                                .build());
+                    }
+                }
             }
 
             ItineraryDay day = ItineraryDay.builder()
                     .tripId(tripId)
                     .dayNumber(dayNum)
+                    .date(date.format(BR_FORMAT))
+                    .title(title)
+                    .activities(activities)
+                    .dailyCostEstimate(dailyCost)
+                    .mapPins(mapPins)
+                    .build();
+
+            result.add(itineraryRepository.save(day));
+        }
+
+        log.info("Salvos {} dias de roteiro para tripId={}", result.size(), tripId);
+        return result;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────
+
+    private int parseCost(String text) {
+        if (text == null || text.isBlank() || text.equalsIgnoreCase("Gratuito"))
+            return 0;
+        try {
+            return (int) Double.parseDouble(
+                    text.replaceAll("[^0-9,.]", "").replace(",", "."));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private String inferType(String activity) {
+        String lower = activity.toLowerCase();
+        if (lower.contains("restaurant") || lower.contains("café") || lower.contains("almoço")
+                || lower.contains("jantar"))
+            return "Restaurante";
+        if (lower.contains("museu") || lower.contains("museum"))
+            return "Museu";
+        if (lower.contains("igreja") || lower.contains("catedral") || lower.contains("templo"))
+            return "Igreja";
+        if (lower.contains("palácio") || lower.contains("castelo"))
+            return "Palácio";
+        if (lower.contains("parque") || lower.contains("jardim") || lower.contains("praia"))
+            return "Natureza";
+        if (lower.contains("mercado") || lower.contains("shopping") || lower.contains("loja"))
+            return "Compras";
+        return "Passeio";
+    }
+
+    private String inferIcon(String activity) {
+        String lower = activity.toLowerCase();
+        if (lower.contains("restaurant") || lower.contains("jantar") || lower.contains("almoço"))
+            return "🍽️";
+        if (lower.contains("café") || lower.contains("coffee"))
+            return "☕";
+        if (lower.contains("museu"))
+            return "🎨";
+        if (lower.contains("igreja") || lower.contains("catedral"))
+            return "⛪";
+        if (lower.contains("palácio") || lower.contains("castelo"))
+            return "🏰";
+        if (lower.contains("parque") || lower.contains("jardim"))
+            return "🌿";
+        if (lower.contains("praia"))
+            return "🏖️";
+        if (lower.contains("mercado"))
+            return "🛍️";
+        if (lower.contains("torre"))
+            return "🗼";
+        return "📍";
+    }
+
+    // ── Fallback local (caso API Python não esteja disponível) ─
+
+    private List<ItineraryDay> generateFallback(String tripId, Trip trip) {
+        List<ItineraryDay> days = new ArrayList<>();
+        LocalDate current = trip.getCheckIn();
+        int dayNum = 1;
+
+        while (!current.isAfter(trip.getCheckOut().minusDays(1))) {
+            List<ItineraryDay.Activity> acts = List.of(
+                    ItineraryDay.Activity.builder()
+                            .time("09:00").name("Exploração local").type("Passeio")
+                            .icon("🗺️").dur("3h").cost(0)
+                            .desc("Explore o centro da cidade.").build(),
+                    ItineraryDay.Activity.builder()
+                            .time("13:00").name("Almoço típico").type("Restaurante")
+                            .icon("🍽️").dur("1h").cost(80)
+                            .desc("Experimente a gastronomia local.").build(),
+                    ItineraryDay.Activity.builder()
+                            .time("15:00").name("Ponto turístico principal").type("Monumento")
+                            .icon("📍").dur("2h").cost(50)
+                            .desc("Visite o principal atrativo da cidade.").build());
+
+            ItineraryDay day = ItineraryDay.builder()
+                    .tripId(tripId)
+                    .dayNumber(dayNum)
                     .date(current.format(BR_FORMAT))
-                    .activities(dayActs)
+                    .title("Dia " + dayNum + " em " + trip.getDestination())
+                    .activities(new ArrayList<>(acts))
                     .build();
 
             days.add(itineraryRepository.save(day));
@@ -128,6 +266,8 @@ public class ItineraryService {
 
         return days;
     }
+
+    // ── Outros métodos ────────────────────────────────────────
 
     public List<ItineraryDay> getDays(String tripId) {
         return itineraryRepository.findByTripIdOrderByDayNumber(tripId);
@@ -154,13 +294,5 @@ public class ItineraryService {
     private ItineraryDay findDay(String dayId) {
         return itineraryRepository.findById(dayId)
                 .orElseThrow(() -> new NoSuchElementException("Dia não encontrado: " + dayId));
-    }
-
-    private static ItineraryDay.Activity act(String time, String name, String type,
-                                              String icon, String dur, int cost, String desc) {
-        return ItineraryDay.Activity.builder()
-                .time(time).name(name).type(type)
-                .icon(icon).dur(dur).cost(cost).desc(desc)
-                .build();
     }
 }

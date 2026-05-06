@@ -34,16 +34,25 @@ public class Trip {
     /** 0 = Econômico | 1 = Confortável | 2 = Luxo */
     private int budget;
 
+    /** Texto do budget para a API Python: "baixo" | "médio" | "alto" */
+    private String budgetLabel;
+
+    /** Número de viajantes — usado pela API Python */
+    @Builder.Default
+    private int travelers = 1;
+
+    /**
+     * Estilo de viagem: "relaxado" | "moderado" | "intenso" — usado pela API Python
+     */
+    private String travelStyle;
+
     /** ex: ["praia", "cultura", "gastro"] */
     private List<String> interests;
 
     @Builder.Default
     private TripStatus status = TripStatus.PLANEJADA;
 
-    /** Emoji exibido no card da tela de perfil */
     private String emoji;
-
-    /** Cor do card no perfil */
     private String color;
 
     @CreatedDate

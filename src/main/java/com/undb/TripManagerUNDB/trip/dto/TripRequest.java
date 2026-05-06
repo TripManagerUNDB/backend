@@ -8,9 +8,11 @@ import java.util.List;
 
 /** Payload enviado pelo wizard (etapas 1-4) */
 public record TripRequest(
-        @NotBlank String destination,
-        @NotNull  LocalDate checkIn,
-        @NotNull  LocalDate checkOut,
-                  int budget,
-                  List<String> interests
-) {}
+                @NotBlank String destination,
+                @NotNull LocalDate checkIn,
+                @NotNull LocalDate checkOut,
+                int budget,
+                List<String> interests,
+                int travelers,
+                String travelStyle) {
+}
