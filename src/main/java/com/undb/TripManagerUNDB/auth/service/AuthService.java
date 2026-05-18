@@ -2,6 +2,7 @@ package com.undb.TripManagerUNDB.auth.service;
 
 import com.undb.TripManagerUNDB.auth.dto.AuthRequest;
 import com.undb.TripManagerUNDB.auth.dto.AuthResponse;
+import com.undb.TripManagerUNDB.auth.dto.RefreshRequest;
 import com.undb.TripManagerUNDB.auth.dto.RegisterRequest;
 import com.undb.TripManagerUNDB.user.entity.User;
 import com.undb.TripManagerUNDB.user.repository.UserRepository;
@@ -15,9 +16,9 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final UserRepository      userRepository;
-    private final PasswordEncoder     passwordEncoder;
-    private final JwtService          jwtService;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
     private final AuthenticationManager authManager;
 
     public AuthResponse register(RegisterRequest req) {
@@ -40,6 +41,20 @@ public class AuthService {
         return toResponse(user);
     }
 
+    public AuthResponse refresh(RefreshRequest req) {
+        String token = req.refreshToken();
+        String email = jwtService.extractUsername(token);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
+
+        if (!jwtService.isRefreshTokenValid(token, user)) {
+            throw new IllegalArgumentException("Refresh token inválido ou expirado.");
+        }
+
+        return toResponse(user);
+    }
+
     private AuthResponse toResponse(User user) {
         return new AuthResponse(
                 jwtService.generateAccessToken(user),
@@ -47,7 +62,6 @@ public class AuthService {
                 user.getId(),
                 user.getName(),
                 user.getEmail(),
-                user.getPlan().name()
-        );
+                user.getPlan().name());
     }
 }

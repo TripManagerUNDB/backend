@@ -2,6 +2,7 @@ package com.undb.TripManagerUNDB.auth.controller;
 
 import com.undb.TripManagerUNDB.auth.dto.AuthRequest;
 import com.undb.TripManagerUNDB.auth.dto.AuthResponse;
+import com.undb.TripManagerUNDB.auth.dto.RefreshRequest;
 import com.undb.TripManagerUNDB.auth.dto.RegisterRequest;
 import com.undb.TripManagerUNDB.auth.service.AuthService;
 import com.undb.TripManagerUNDB.user.entity.User;
@@ -30,17 +31,17 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(req));
     }
 
-    /**
-     * Retorna dados do usuário logado.
-     * Alimenta o header da tela de perfil (nome, email, plano).
-     */
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshRequest req) {
+        return ResponseEntity.ok(authService.refresh(req));
+    }
+
     @GetMapping("/me")
     public ResponseEntity<Map<String, Object>> me(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(Map.of(
-                "id",    user.getId(),
-                "name",  user.getName(),
+                "id", user.getId(),
+                "name", user.getName(),
                 "email", user.getEmail(),
-                "plan",  user.getPlan().name()
-        ));
+                "plan", user.getPlan().name()));
     }
 }

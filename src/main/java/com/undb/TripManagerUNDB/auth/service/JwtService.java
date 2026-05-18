@@ -38,6 +38,18 @@ public class JwtService {
         return extractUsername(token).equals(user.getUsername()) && !isExpired(token);
     }
 
+    public boolean isRefreshTokenValid(String token, UserDetails user) {
+        try {
+            Claims claims = extractAllClaims(token);
+            String type = (String) claims.get("type");
+            return "refresh".equals(type)
+                    && claims.getSubject().equals(user.getUsername())
+                    && !claims.getExpiration().before(new Date());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
@@ -47,13 +59,15 @@ public class JwtService {
     }
 
     private <T> T extractClaim(String token, Function<Claims, T> fn) {
-        return fn.apply(
-                Jwts.parser()
-                        .verifyWith(key())
-                        .build()
-                        .parseSignedClaims(token)
-                        .getPayload()
-        );
+        return fn.apply(extractAllClaims(token));
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(key())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 
     private String build(Map<String, Object> extra, UserDetails user, long exp) {
