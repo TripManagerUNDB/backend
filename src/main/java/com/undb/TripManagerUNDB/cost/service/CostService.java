@@ -15,25 +15,25 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CostService {
 
-    private final CostRepository      costRepository;
+    private final CostRepository costRepository;
     private final ItineraryRepository itineraryRepository;
-    private final TripService         tripService;
+    private final TripService tripService;
 
     // Cores iguais às do frontend (donut chart)
-    private static final String[] COLORS = {"#EA9940","#307082","#6CA3A2","#ECE7DC","#243545"};
+    private static final String[] COLORS = { "#EA9940", "#307082", "#6CA3A2", "#ECE7DC", "#243545" };
 
     // Multiplicadores por nível de budget (0=eco, 1=confortável, 2=luxo)
-    private static final int[] MULT = {1, 2, 4};
+    private static final int[] MULT = { 1, 2, 4 };
 
     public CostSummary getOrCalculate(String tripId) {
-        return costRepository.findByTripId(tripId).orElseGet(() -> calculate(tripId));
+        return costRepository.findFirstByTripId(tripId).orElseGet(() -> calculate(tripId));
     }
 
     public CostSummary calculate(String tripId) {
         Trip trip = tripService.findEntityById(tripId);
         List<ItineraryDay> days = itineraryRepository.findByTripIdOrderByDayNumber(tripId);
 
-        int nights = (int)(trip.getCheckOut().toEpochDay() - trip.getCheckIn().toEpochDay());
+        int nights = (int) (trip.getCheckOut().toEpochDay() - trip.getCheckIn().toEpochDay());
         int m = MULT[Math.min(trip.getBudget(), 2)];
 
         // Soma o custo real das atividades
@@ -42,20 +42,19 @@ public class CostService {
                 .mapToInt(ItineraryDay.Activity::getCost)
                 .sum();
 
-        int voo        = 800  * m;
-        int hotel      = 200  * m * nights;
+        int voo = 800 * m;
+        int hotel = 200 * m * nights;
         int alimentacao = Math.max(actTotal / 2, 100 * m * nights);
-        int transporte  = 50  * m * nights;
-        int atracoes    = actTotal > 0 ? actTotal : 80 * m * nights;
-        int total       = voo + hotel + alimentacao + transporte + atracoes;
+        int transporte = 50 * m * nights;
+        int atracoes = actTotal > 0 ? actTotal : 80 * m * nights;
+        int total = voo + hotel + alimentacao + transporte + atracoes;
 
         List<CostSummary.CostItem> breakdown = List.of(
-                item("Voo",         voo,        total, COLORS[0]),
-                item("Hotel",       hotel,       total, COLORS[1]),
+                item("Voo", voo, total, COLORS[0]),
+                item("Hotel", hotel, total, COLORS[1]),
                 item("Alimentação", alimentacao, total, COLORS[2]),
-                item("Transporte",  transporte,  total, COLORS[3]),
-                item("Atrações",    atracoes,    total, COLORS[4])
-        );
+                item("Transporte", transporte, total, COLORS[3]),
+                item("Atrações", atracoes, total, COLORS[4]));
 
         String tip = buildTip(trip, m);
 
@@ -67,7 +66,7 @@ public class CostService {
                 .build();
 
         // Upsert: preserva o id se já existir
-        costRepository.findByTripId(tripId).ifPresent(old -> summary.setId(old.getId()));
+        costRepository.findFirstByTripId(tripId).ifPresent(old -> summary.setId(old.getId()));
         return costRepository.save(summary);
     }
 
