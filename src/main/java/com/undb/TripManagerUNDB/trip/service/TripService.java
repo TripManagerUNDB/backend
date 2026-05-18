@@ -105,4 +105,10 @@ public class TripService {
         }
         return trip;
     }
+
+    public TripResponse updateStatus(String userId, String tripId, String status) {
+        Trip trip = findOwned(userId, tripId);
+        trip.setStatus(TripStatus.valueOf(status.toUpperCase()));
+        return TripResponse.from(tripRepository.save(trip));
+    }
 }

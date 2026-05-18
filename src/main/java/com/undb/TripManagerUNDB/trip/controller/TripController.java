@@ -21,7 +21,7 @@ public class TripController {
 
     /**
      * Lista viagens do usuário logado.
-     * ?status=PLANEJADA | CONCLUIDA  para filtrar (tela de perfil)
+     * ?status=PLANEJADA | CONCLUIDA para filtrar (tela de perfil)
      */
     @GetMapping
     public List<TripResponse> list(
@@ -51,5 +51,13 @@ public class TripController {
             @PathVariable String id) {
         tripService.delete(user.getId(), id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<TripResponse> updateStatus(
+            @AuthenticationPrincipal User user,
+            @PathVariable String id,
+            @RequestParam String status) {
+        return ResponseEntity.ok(tripService.updateStatus(user.getId(), id, status));
     }
 }
