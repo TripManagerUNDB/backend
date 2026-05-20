@@ -3,4 +3,6 @@ services:
     name: tripmanager-backend
     runtime: docker
     plan: free
-    envVars: []
+    envVars:
+      - key: MONGODB_URI
+        value: mongodb+srv://admin:admin@cluster0.x5bmhxf.mongodb.net/tripmanager?appName=Cluster0
