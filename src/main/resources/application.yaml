@@ -20,7 +20,7 @@ app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:*}
   python-api:
-    url: ${PYTHON_API_URL:https://api-opal-mu-56.vercel.app}
+    url: ${PYTHON_API_URL:https://tripmanager-api.onrender.com}
 
 management:
   endpoints:
