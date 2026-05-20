@@ -7,7 +7,7 @@ spring:
 
   data:
     mongodb:
-      uri: ${MONGODB_URI:mongodb+srv://admin:admin@cluster0.x5bmhxf.mongodb.net/tripmanager?appName=Cluster0}
+      database: tripmanager
 
 server:
   port: ${PORT:8080}
