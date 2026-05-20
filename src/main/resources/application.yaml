@@ -5,8 +5,9 @@ spring:
   main:
     allow-circular-references: true
 
-  mongodb:
-    uri: ${MONGODB_URI:mongodb://localhost:27017/tripmanager}
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/tripmanager}
 
 server:
   port: ${PORT:8080}
